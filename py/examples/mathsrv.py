@@ -13,7 +13,7 @@ class Math(object):
 		return a*b
 
 n = Node(cert='serverside.pem')
-ref = n.register_object(Math())
+ref = n.register(Math())
 n.listen(port=10000)
 print 'math obj ready at', n.refurl(ref)
 

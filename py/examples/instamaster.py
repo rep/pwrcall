@@ -38,7 +38,7 @@ class Instamaster(object):
 def main():
 	n = Node(cert='serverside.pem')
 	im = Instamaster()
-	ref = n.register_object(im, 'im')
+	ref = n.register(im, 'im')
 	n._on('connection', im.on_new_conn)
 	n.listen(port=20001)
 	print 'Instamaster at', n.refurl(ref)

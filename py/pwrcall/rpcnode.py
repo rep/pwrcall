@@ -76,7 +76,7 @@ class Node(EventGen):
 		self.secret = util.filehash(self.cert)[:16]
 		self.nonce = (util.rand32()<<32) | util.rand32()
 
-		self.register_object(nodeFunctions(self), '$node')
+		self.register(nodeFunctions(self), '$node')
 		#pyevloop.later(5, self.connstats)
 
 	def connstats(self):
@@ -97,7 +97,7 @@ class Node(EventGen):
 	def refurl(self, ref):
 		ports = [i.sock.getsockname()[1] for i in self.listeners]
 		hints = ','.join(['{0}:{1}'.format(i[0], i[1]) for i in itertools.product(self.eventloop.hints, ports)])
-		return 'pwrcall://{0}@{1}/{2}'.format(self.fp, hints, ref)
+		return 'pwrcall://{0}@{1}/{2}'.format(self.fp, hints, ref.encode('hex'))
 
 	def option_revoked(self, opts):
 		cfp = opts.pop('clonefp', None)
@@ -107,7 +107,7 @@ class Node(EventGen):
 		return False
 
 	def lookup(self, ref):
-		if ref in revoked: raise NodeException('Invalid object reference used.')
+		if ref in self.revoked: raise NodeException('Invalid object reference used.')
 		try:
 			objid, options = self.decode_cap(ref)
 			if self.option_revoked(options): raise NodeException('Invalid object reference used.')
@@ -125,7 +125,7 @@ class Node(EventGen):
 			return o
 
 	def decode_cap(self, cap):
-		objid, nonce, opts = util.cap_from_forwarder(self.secret, cap)
+		nonce, objid, opts = util.cap_from_forwarder(self.secret, cap)
 		if nonce != self.nonce:	raise NodeException('Nonce from message incorrect.')
 		# TODO: somehow give options to user
 		return objid, opts

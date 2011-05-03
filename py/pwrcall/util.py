@@ -71,7 +71,7 @@ def parse_url(url):
 	if up.netloc:
 		try: hints = [(j[0], int(j[1])) for j in [i.split(':') for i in up.netloc.split('@')[1].split(',')]]
 		except: pass
-	return up.username, hints, up.path.lstrip('/')
+	return up.username, hints, up.path.lstrip('/').decode('hex')
 
 def load_cert(cert):
 	if not cert:

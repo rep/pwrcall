@@ -36,7 +36,7 @@ class File(object):
 class Instaclient(object):
 	def __init__(self, node):
 		self.node = node
-		self.ref = node.register_object(self)
+		self.ref = node.register(self)
 		self.pwrurl = node.refurl(self.ref)
 		print 'Instaclient exported', self.pwrurl
 

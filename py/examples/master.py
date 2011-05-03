@@ -37,7 +37,7 @@ class Master(object):
 	def __init__(self):
 		self.n = Node(cert='serverside.pem')
 		self.n.listen(port=10000)
-		ref = self.n.register_object(self, 'master')
+		ref = self.n.register(self, 'master')
 		print 'Master at', self.n.refurl(ref)
 
 		self.slaves = {}
