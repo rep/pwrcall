@@ -29,7 +29,7 @@ class nodeFunctions(object):
 		return self.node.lookup(cap)
 
 	@expose
-	def clone(self, cap, options={}, conn):
+	def clone(self, cap, options={}, conn=None):
 		"""Clone a capability"""
 		o = self.node.lookup(cap)
 		# cloning always includes the caller fingerprint
@@ -39,7 +39,7 @@ class nodeFunctions(object):
 		return cap
 
 	@expose
-	def revoke(self, cap, conn):
+	def revoke(self, cap, conn=None):
 		"""Revoke a previously cloned capability."""
 		objid, opts = self.node.decode_cap(cap)
 		cfp = opts.get('clonefp', None)
