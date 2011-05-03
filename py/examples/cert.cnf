@@ -1,0 +1,15 @@
+[ req ]
+prompt = no
+default_md = sha1
+default_bits = 2048
+distinguished_name = foo
+
+[ foo ]
+commonName = testcert
+countryName = DE
+stateOrProvinceName = NRW
+localityName = Aachen
+0.organizationName = RWTH IT Security Research Group
+0.organizationalUnitName = pwrcall
+emailAddress = selfschuld@selfschuld.de
+
