@@ -35,7 +35,7 @@ class Processround(object):
 
 class Master(object):
 	def __init__(self):
-		self.n = Node(cert='cert.pem')
+		self.n = Node(cert='serverside.pem')
 		self.n.listen(port=10000)
 		ref = self.n.register_object(self, 'master')
 		print 'Master at', self.n.refurl(ref)

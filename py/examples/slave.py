@@ -18,7 +18,7 @@ class Slave(object):
 		later(2.0, fulfill)
 		return p
 
-n = Node(cert='cert2.pem')
+n = Node(cert='clientside.pem')
 s = Slave()
 m = n.establish(sys.argv[1])
 m.call('addslave', s)

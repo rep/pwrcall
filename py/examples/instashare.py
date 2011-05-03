@@ -15,6 +15,7 @@ import gtkdialog
 MASTERURL = 'pwrcall://c6db6fac64dd58e7a7a8228e9bc11116397ba58d@137.226.161.210:20001/im'
 MASTERURL = 'pwrcall://e7bcae69e9c79aad2f4b8fe1f14bcd52beb4faae@137.226.161.211:20001/im'
 DOTPATH = os.path.expanduser('~/.instashare/')
+CERTPATH = os.path.join(DOTPATH, 'cert.pem')
 
 class File(object):
 	def __init__(self, fname):
@@ -143,7 +144,7 @@ def opts():
 	return options, action, args
 	
 def main(options, action, args):
-	n = Node(cert=os.path.join(DOTPATH, 'cert.pem'))
+	n = Node(cert=CERTPATH)
 
 	if action == 'listen':
 		ic = Instaclient(n)
@@ -193,12 +194,11 @@ def setup_dotdir():
 		except:
 			return False
 
-	certpath = os.path.join(DOTPATH, 'cert.pem')
-	if not (os.path.exists(certpath) and os.path.isfile(certpath)):
+	if not (os.path.exists(CERTPATH) and os.path.isfile(CERTPATH)):
 		print 'Generating self-signed certificate...'
 		try:
 			crt = gen_selfsigned_cert()
-			open(certpath, 'w').write(crt)
+			open(CERTPATH, 'w').write(crt)
 		except:
 			return False
 

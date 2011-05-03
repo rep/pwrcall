@@ -12,7 +12,7 @@ class Math(object):
 	def mul(self, a, b):
 		return a*b
 
-n = Node(cert='cert2.pem')
+n = Node(cert='serverside.pem')
 ref = n.register_object(Math())
 n.listen(port=10000)
 print 'math obj ready at', n.refurl(ref)

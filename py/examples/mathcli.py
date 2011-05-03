@@ -1,7 +1,7 @@
 import sys
 from pwrcall import loop, unloop, Node, expose
 
-n = Node(cert='cert.pem')
+n = Node(cert='clientside.pem')
 math = n.establish(sys.argv[1])
 #math2 = n.connect('127.0.0.1', 10000).rootobj().call('get', sys.argv[1].split('/')[-1])
 

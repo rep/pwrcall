@@ -36,7 +36,7 @@ class Instamaster(object):
 		rc._on('close', connclosed)
 
 def main():
-	n = Node(cert='instamaster.pem')
+	n = Node(cert='serverside.pem')
 	im = Instamaster()
 	ref = n.register_object(im, 'im')
 	n._on('connection', im.on_new_conn)
