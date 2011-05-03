@@ -1,0 +1,9 @@
+// fortune.idl -- the interface definition
+module Math {
+  interface MathServer {
+    long add(in long a, in long b);
+    long mul(in long a, in long b);
+  };
+};
+
+
