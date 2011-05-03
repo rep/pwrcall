@@ -25,7 +25,7 @@ setup(
 	license = "MIT/BSD/GPL",
 	keywords = "pwrcall evnet pyev network asynchronous nonblocking event rpc distributed",
 	url = "https://github.com/rep/pwrcall",
-	install_requires = ['evnet>=1.0-4', 'pyOpenSSL>=0.10-1', 'pycrypto>=2.0.1', 'msgpack-python>=0.1.9'],
+	install_requires = ['evnet>=1.0-4', 'pyOpenSSL>=0.10-1', 'pycrypto>=2.0.1', 'msgpack-python>=0.1.9', 'pyev>=0.5.3-3.8'],
 	packages = ['pwrcall',],
 	**extra
 )
