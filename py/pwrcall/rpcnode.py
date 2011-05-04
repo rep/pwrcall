@@ -35,8 +35,9 @@ class nodeFunctions(object):
 		# cloning always includes the caller fingerprint
 		# this restricts revocation
 		options.update({'clonefp': conn.conn.peerfp})
-		cap = util.gen_forwarder(self.node.secret, o, self.node.nonce, options=options)
-		return cap
+		newcap = util.gen_forwarder(self.node.secret, o, self.node.nonce, options=options)
+		self.node.register(o, cap=newcap)
+		return self.node.refurl(newcap)
 
 	@expose
 	def revoke(self, cap, conn=None):
@@ -76,7 +77,7 @@ class Node(EventGen):
 		self.secret = util.filehash(self.cert)[:16]
 		self.nonce = (util.rand32()<<32) | util.rand32()
 
-		self.register(nodeFunctions(self), '$node')
+		self.register(nodeFunctions(self), cap='$node')
 		#pyevloop.later(5, self.connstats)
 
 	def connstats(self):
@@ -108,6 +109,9 @@ class Node(EventGen):
 
 	def lookup(self, ref):
 		if ref in self.revoked: raise NodeException('Invalid object reference used.')
+		o = self.exports.get(ref, None)
+		if o: return o
+
 		try:
 			objid, options = self.decode_cap(ref)
 			if self.option_revoked(options): raise NodeException('Invalid object reference used.')
@@ -118,9 +122,7 @@ class Node(EventGen):
 		except NodeException:
 			raise
 		except:
-			o = self.exports.get(ref, None)
-			if not o: raise NodeException('Invalid object reference used.')
-			else: return o
+			raise NodeException('Invalid object reference used.')
 		else:
 			return o
 
