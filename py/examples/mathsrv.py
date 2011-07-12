@@ -8,12 +8,9 @@ class Math(object):
 	def add(self, a, b):
 		return a+b
 
-	@expose
-	def mul(self, a, b):
-		return a*b
-
 n = Node(cert='serverside.pem')
-ref = n.register(Math())
+m = Math()
+ref = n.register(m)
 n.listen(port=10000)
 print 'math obj ready at', n.refurl(ref)
 

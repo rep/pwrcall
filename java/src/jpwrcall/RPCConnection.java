@@ -110,7 +110,6 @@ public class RPCConnection implements MessageHandler {
 
 		int opcode = array[0].asInt();
 		System.out.println("handle called " + array.length + " opcode " + opcode);
-		if (1*1 == 1) return;
 
 		switch (opcode) {
 			case RPC_REQUEST: {

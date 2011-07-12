@@ -10,6 +10,15 @@ import org.msgpack.MessagePackObject;
  * @author Mark Schloesser
  */
 public class jpwrtestcli1 {
+	public static char[] hexStringToByteArray(String s) {
+	    int len = s.length();
+	    char[] data = new char[len / 2];
+	    for (int i = 0; i < len; i += 2) {
+		data[i / 2] = (char) (Integer.parseInt(s.substring(i, i+2), 16) & 0xff);
+	    }
+	    return data;
+	}
+
 	private static class OnResult implements Util.Callback {
 		public void cb(Object r) {
 			System.out.println("on_result " + r.toString());
@@ -25,6 +34,7 @@ public class jpwrtestcli1 {
 
 		public OnConnected(String ref) {
 			this.ref = ref;
+			//this.ref = new String(hexStringToByteArray(ref));
 		}
 
 		public void cb(Object r) {
@@ -45,7 +55,7 @@ public class jpwrtestcli1 {
 
 	public static void main(String[] args) {
 		Node n = new Node("cert_t1.jks");
-		Promise p = n.connect("127.0.0.1", 10000);
+		Promise p = n.connect("127.0.0.1", 10001);
 		p.when(new OnConnected(args[0]));
 		p.except(new OnError());
 	}

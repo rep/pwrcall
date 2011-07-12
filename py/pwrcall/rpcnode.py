@@ -7,6 +7,7 @@ import inspect
 import itertools
 import time
 import collections
+import traceback
 
 from . import util
 from . import pyevloop
@@ -36,7 +37,7 @@ class nodeFunctions(object):
 		# this restricts revocation
 		options.update({'clonefp': conn.conn.peerfp})
 		newcap = util.gen_forwarder(self.node.secret, o, self.node.nonce, options=options)
-		self.node.register(o, cap=newcap)
+		#self.node.register(o, cap=newcap)
 		return self.node.refurl(newcap)
 
 	@expose
@@ -63,6 +64,7 @@ class Node(EventGen):
 		self.cert = cert
 		self.x509, self.fp = util.load_cert(self.cert)
 		logging.debug('Node fingerprint {0}'.format(self.fp))
+		print('Node fingerprint {0}'.format(self.fp))
 		self.verify_hook = None
 
 		self.connections = set()
@@ -71,6 +73,7 @@ class Node(EventGen):
 		self._closing = False
 		self._shutdown = False
 		self.exports = {}
+		self.directcaps = {}
 		self.revoked = set()
 		self.revoked_opts = collections.defaultdict(set)
 
@@ -91,8 +94,9 @@ class Node(EventGen):
 		return True
 
 	def register(self, obj, options=None, cap=None):
-		if not cap: cap = util.gen_forwarder(self.secret, obj, self.nonce, options=options)
-		self.exports[cap] = obj
+		self.exports[id(obj)] = obj
+		if cap: self.directcaps[cap] = obj
+		else: cap = util.gen_forwarder(self.secret, obj, self.nonce, options=options)
 		return cap
 
 	def refurl(self, ref):
@@ -101,33 +105,40 @@ class Node(EventGen):
 		return 'pwrcall://{0}@{1}/{2}'.format(self.fp, hints, ref.encode('hex'))
 
 	def option_revoked(self, opts):
+		if not opts: return False
+		if opts and not isinstance(opts, dict):
+			print 'options not a dict:', type(opts), opts
+			return False
 		cfp = opts.pop('clonefp', None)
 		if not cfp: return False
 		for i in opts.items():
-			if i in self.revoked_opts[cfp]: return True
+			if i != () and i in self.revoked_opts[cfp]: return True
 		return False
 
 	def lookup(self, ref):
 		if ref in self.revoked: raise NodeException('Invalid object reference used.')
-		o = self.exports.get(ref, None)
+		o = self.directcaps.get(ref, None)
 		if o: return o
 
 		try:
 			objid, options = self.decode_cap(ref)
 			if self.option_revoked(options): raise NodeException('Invalid object reference used.')
-			owref = self.exports.get(objid, None)
-			if not owref: raise NodeException('Invalid object reference used.')
-			o = owref()
-			if not o: raise NodeException('Object has gone away.')
-		except NodeException:
+			o = self.exports.get(objid, None)
+			if not o: raise NodeException('Invalid object reference used.')
+			if isinstance(o, weakref.ref):
+				o = o()
+				if not o: raise NodeException('Object has gone away.')
+		except NodeException, e:
 			raise
-		except:
-			raise NodeException('Invalid object reference used.')
+		except Exception, e:
+			traceback.print_exc()
+			raise NodeException('Internal Server Error.')
 		else:
 			return o
 
 	def decode_cap(self, cap):
-		nonce, objid, opts = util.cap_from_forwarder(self.secret, cap)
+		try: nonce, objid, opts = util.cap_from_forwarder(self.secret, cap)
+		except: raise NodeException('Invalid capability.')
 		if nonce != self.nonce:	raise NodeException('Nonce from message incorrect.')
 		# TODO: somehow give options to user
 		return objid, opts
@@ -210,7 +221,9 @@ class Node(EventGen):
 		for c in self.connections:
 			if c.conn.peerfp == fp:
 				logging.debug('Had a connection to that Node, reusing to get obj.')
-				return Referenced(c, cap)
+				p = Promise()
+				p._resolve( Referenced(c, cap) )
+				return p
 
 		def on_connected(conn, p, c, fp):
 			if conn.conn.peerfp == fp:
@@ -344,6 +357,9 @@ class RPCConnection(EventGen):
 				r = self.do_call(obj, method, params)
 			except NodeException as e:
 				self.send_response(msgid, str(e), None)
+			except Exception as e:
+				self.send_response(msgid, 'An exception occurred.', None)
+				traceback.print_exc()
 			else:
 				if isinstance(r, Promise):
 					def send_delayed(result):
