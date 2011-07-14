@@ -102,7 +102,7 @@ class Node(EventGen):
 	def refurl(self, ref):
 		ports = [i.sock.getsockname()[1] for i in self.listeners]
 		hints = ','.join(['{0}:{1}'.format(i[0], i[1]) for i in itertools.product(self.eventloop.hints, ports)])
-		return 'pwrcall://{0}@{1}/{2}'.format(self.fp, hints, ref.encode('hex'))
+		return 'pwrcall://{0}@{1}/{2}'.format(self.fp, hints, ref.encode('base64').strip())
 
 	def option_revoked(self, opts):
 		if not opts: return False
@@ -138,7 +138,7 @@ class Node(EventGen):
 
 	def decode_cap(self, cap):
 		try: nonce, objid, opts = util.cap_from_forwarder(self.secret, cap)
-		except: raise NodeException('Invalid capability.')
+		except Exception, e: raise NodeException('Invalid capability.')
 		if nonce != self.nonce:	raise NodeException('Nonce from message incorrect.')
 		# TODO: somehow give options to user
 		return objid, opts
@@ -237,6 +237,9 @@ class Node(EventGen):
 		for ip, port in hints:
 			rc = self.connect(ip, port)
 			rc.onready()._when(self._connected, p1)
+			def smash_p2(r):
+				if not p2._result: p2._smash(NodeException(r))
+			rc._on('close', smash_p2)
 
 		return p2
 
@@ -414,5 +417,6 @@ class RPCConnection(EventGen):
 
 	def gen_cap(self, o, options={}):
 		options.update({'fp':self.conn.peerfp})
-		return util.gen_forwarder(self.node.secret, o, self.node.nonce, options=options)
+		t = util.gen_forwarder(self.node.secret, o, self.node.nonce, options=options)
+		return t
 		

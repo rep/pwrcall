@@ -18,19 +18,44 @@ class Process(EventGen):
 		self.buf = bytearray()
 		self._writing = False
 		self._closed = False
+		self.args = args
+		self.retval = None
+		self.orw, self.erw, self.iww = None, None, None
+		self.p = None
 
-		self.p = subprocess.Popen(args,	stdin=subprocess.PIPE,
-			stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=False)
+		later(0.0, self.run)
 
-		self.orw = pyev.Io(self.p.stdout, pyev.EV_READ, default_loop, self.orw_cb)
-		self.erw = pyev.Io(self.p.stderr, pyev.EV_READ, default_loop, self.erw_cb)
-		self.iww = pyev.Io(self.p.stdin, pyev.EV_WRITE, default_loop, self.iww_cb)
-		fdnonblock(self.p.stdin.fileno())
-		fdnonblock(self.p.stdout.fileno())
-		fdnonblock(self.p.stderr.fileno())
+	def run(self):
+		try:
+			self.p = subprocess.Popen(self.args, stdin=subprocess.PIPE,
+				stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=False)
+		except Exception, e:
+			self._close(e)
+		else:
+			self.orw = pyev.Io(self.p.stdout, pyev.EV_READ, default_loop, self.orw_cb)
+			self.erw = pyev.Io(self.p.stderr, pyev.EV_READ, default_loop, self.erw_cb)
+			self.iww = pyev.Io(self.p.stdin, pyev.EV_WRITE, default_loop, self.iww_cb)
+			fdnonblock(self.p.stdin.fileno())
+			fdnonblock(self.p.stdout.fileno())
+			fdnonblock(self.p.stderr.fileno())
 
-		self.orw.start()
-		self.erw.start()
+			self.orw.start()
+			self.erw.start()
+
+	def kill(self):
+		try: self.p.kill()
+		except OSError, e: self._close(e)
+	def terminate(self):
+		try: self.p.terminate()
+		except OSError, e: self._close(e)
+
+	def poll(self):
+		if self._closed:
+			if self.retval == None: self.retval = -2
+			return self.retval
+		else:
+			self.retval = self.p.poll() if self.p else -2
+			return self.retval
 
 	def write(self, data):
 		if self._closed: raise EVException('Already closed.')
@@ -38,7 +63,7 @@ class Process(EventGen):
 		self.buf.extend(data)
 		if not self.iww.active and not self._writing: self._writeloop()
 		
-	def forward(self, fd, ed):
+	def forward(self, fd, ed, watcher):
 		count = 0
 		while not self._closed and count < 5:
 			count += 1
@@ -49,19 +74,20 @@ class Process(EventGen):
 			except Exception as e:
 				self._close(EVException('Exception {0}'.format(e)))
 			else:
-				if not data:
-					self._close(EVException('Connection closed. not data'))
-				elif len(data) == 0:
-					self._close(EVException('Connection closed. len data = 0'))
+				if not data: self.notdata(fd, watcher)
 				else:
 					try: self._event(ed, data)
 					except:	traceback.print_exc()
+
+	def notdata(self, fd, watcher):
+		watcher.stop()
+		if not self.orw.active and not self.erw.active: self._close(EVException('Connection closed. not data'))
 		
 	def orw_cb(self, watcher, events):
-		self.forward(self.p.stdout, 'read')
+		self.forward(self.p.stdout, 'read', watcher)
 
 	def erw_cb(self, watcher, events):
-		self.forward(self.p.stderr, 'readerr')
+		self.forward(self.p.stderr, 'readerr', watcher)
 
 	def iww_cb(self, watcher, events):
 		if self.iww.active: self.iww.stop()
@@ -96,8 +122,9 @@ class Process(EventGen):
 		self._writing = False
 
 	def _close(self, e):
-		if self.orw.active: self.orw.stop()
-		if self.erw.active: self.erw.stop()
+		if self.orw and self.orw.active: self.orw.stop()
+		if self.erw and self.erw.active: self.erw.stop()
+		self.poll()
 		self._closed = True
 		self._event('close', e)
 
