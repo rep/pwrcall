@@ -71,10 +71,9 @@ class Process(EventGen):
 		if not self.orw.active and not self.erw.active: self._close(EVException('Connection closed. not data'))
 
 	def cw_cb(self, watcher, events):
-		print 'cw_cb', watcher, events, watcher.pid, watcher.rpid, watcher.rstatus
 		if os.WIFSIGNALED(watcher.rstatus): self.retval = -os.WTERMSIG(watcher.rstatus)
 		elif os.WIFEXITED(watcher.rstatus): self.retval = os.WEXITSTATUS(watcher.rstatus)
-		print 'retval', self.retval
+		self._close(EVException('Child exit.'))
 		
 	def orw_cb(self, watcher, events):
 		self.forward(self.p.stdout, 'read', watcher)
