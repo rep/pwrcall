@@ -117,8 +117,8 @@ class Process(EventGen):
 		self._writing = False
 
 	def _close(self, e):
-		if not self._closed:
-			self._closed = True
+		self._closed = True
+		if not self.orw.active and not self.erw.active:
 			self._event('close', e)
 
 if __name__ == '__main__':
