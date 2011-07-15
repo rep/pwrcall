@@ -116,8 +116,9 @@ class Process(EventGen):
 	def _close(self, e):
 		if self.orw.active: self.orw.stop()
 		if self.erw.active: self.erw.stop()
-		self._closed = True
-		self._event('close', e)
+		if not self._closed:
+			self._closed = True
+			self._event('close', e)
 
 if __name__ == '__main__':
 	def incoming(data):
