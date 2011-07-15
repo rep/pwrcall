@@ -64,14 +64,10 @@ class Process(EventGen):
 				watcher.stop()
 				self._close(EVException('Exception {0}'.format(e)))
 			else:
-				if not data: self.notdata(fd, watcher)
+				if not data: watcher.stop()
 				else:
 					try: self._event(ed, data)
 					except:	traceback.print_exc()
-
-	def notdata(self, fd, watcher):
-		watcher.stop()
-		if not self.orw.active and not self.erw.active: self._close(EVException('Connection closed. not data'))
 
 	def cw_cb(self, watcher, events):
 		if os.WIFSIGNALED(watcher.rstatus): self.retval = -os.WTERMSIG(watcher.rstatus)
@@ -117,9 +113,10 @@ class Process(EventGen):
 		self._writing = False
 
 	def _close(self, e):
+		if self.orw.active: self.orw.invoke(pyev.EV_READ)
+		if self.erw.active: self.erw.invoke(pyev.EV_READ)
 		self._closed = True
-		if not self.orw.active and not self.erw.active:
-			self._event('close', e)
+		self._event('close', e)
 
 if __name__ == '__main__':
 	def incoming(data):
