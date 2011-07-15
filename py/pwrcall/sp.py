@@ -57,8 +57,11 @@ class Process(EventGen):
 			try: data = fd.read(16384)
 			except IOError as e:
 				if e.errno == errno.EAGAIN: return
-				else: self._close(EVException('Exception {0}'.format(e)))
+				else:
+					watcher.stop()
+					self._close(EVException('Exception {0}'.format(e)))
 			except Exception as e:
+				watcher.stop()
 				self._close(EVException('Exception {0}'.format(e)))
 			else:
 				if not data: self.notdata(fd, watcher)
@@ -114,8 +117,6 @@ class Process(EventGen):
 		self._writing = False
 
 	def _close(self, e):
-		if self.orw.active: self.orw.stop()
-		if self.erw.active: self.erw.stop()
 		if not self._closed:
 			self._closed = True
 			self._event('close', e)
