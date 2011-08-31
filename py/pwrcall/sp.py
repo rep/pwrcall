@@ -23,12 +23,14 @@ class Process(EventGen):
 			self.p = subprocess.Popen(args, stdin=subprocess.PIPE,
 				stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=False)
 		except Exception, e:
-			self._close(e)
+			self._closed = True
+			self.retval = 3
+			self._event('close', e)
 		else:
 			self.cw = pyev.Child(self.p.pid, False, default_loop, self.cw_cb)
-			self.orw = pyev.Io(self.p.stdout, pyev.EV_READ, default_loop, self.orw_cb)
-			self.erw = pyev.Io(self.p.stderr, pyev.EV_READ, default_loop, self.erw_cb)
-			self.iww = pyev.Io(self.p.stdin, pyev.EV_WRITE, default_loop, self.iww_cb)
+			self.orw = pyev.Io(self.p.stdout, pyev.EV_READ, default_loop, self.orw_cb, priority=pyev.EV_MINPRI)
+			self.erw = pyev.Io(self.p.stderr, pyev.EV_READ, default_loop, self.erw_cb, priority=pyev.EV_MINPRI)
+			self.iww = pyev.Io(self.p.stdin, pyev.EV_WRITE, default_loop, self.iww_cb, priority=pyev.EV_MINPRI)
 			fdnonblock(self.p.stdin.fileno())
 			fdnonblock(self.p.stdout.fileno())
 			fdnonblock(self.p.stderr.fileno())
@@ -113,8 +115,15 @@ class Process(EventGen):
 		self._writing = False
 
 	def _close(self, e):
-		if self.orw.active: self.orw.invoke(pyev.EV_READ)
-		if self.erw.active: self.erw.invoke(pyev.EV_READ)
+		if self.orw.active:
+			self.orw.invoke(pyev.EV_READ)
+			self.orw.stop()
+		if self.erw.active:
+			self.erw.invoke(pyev.EV_READ)
+			self.erw.stop()
+		self.p.stdout.close()
+		self.p.stderr.close()
+		self.p.stdin.close()
 		self._closed = True
 		self._event('close', e)
 
