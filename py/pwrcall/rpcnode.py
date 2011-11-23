@@ -57,9 +57,9 @@ class nodeFunctions(object):
 		return True
 		
 class Node(EventGen):
-	def __init__(self, cert=None, eventloop=pyevloop):
+	def __init__(self, cert=None, eventloop=None):
 		EventGen.__init__(self)
-		self.eventloop = eventloop
+		self.eventloop = eventloop if eventloop != None else: pyevloop
 		self.eventloop.shutdown_callback(self._shutdown_request)
 		self.cert = cert
 		self.x509, self.fp = util.load_cert(self.cert)
@@ -81,13 +81,12 @@ class Node(EventGen):
 		self.nonce = (util.rand32()<<32) | util.rand32()
 
 		self.register(nodeFunctions(self), cap='$node')
-		#pyevloop.later(5, self.connstats)
 
 	def connstats(self):
 		print '---connstats---'
 		for i in self.connections:
 			print i, i.exports, i.out_requests, i.last_msgid, i.conn.buf.size, i.conn.readbytes, i.conn.writebytes
-		pyevloop.later(5, self.connstats)
+		self.eventloop.later(5, self.connstats)
 
 	def verify_peer(self, ok, store, *args, **kwargs):
 		if self.verify_hook: return self.verify_hook(ok, store, *args, **kwargs)
@@ -176,7 +175,6 @@ class Node(EventGen):
 		else: c = self.eventloop.connectplain(host, port)
 
 		rc = RPCConnection(c, (host, port), self)
-		self.connections.add(rc)
 		self._event('connection', rc, (host, port))
 		return rc
 
@@ -196,7 +194,6 @@ class Node(EventGen):
 
 	def _new_conn(self, c, addr):
 		rc = RPCConnection(c, addr, self)
-		self.connections.add(rc)
 		self._event('connection', rc, addr)
 		logging.info('New connection from {0}'.format(addr))
 
@@ -259,6 +256,8 @@ class RPCConnection(EventGen):
 		self.last_msgid = 0
 		self.livesign = time.time()
 
+		self.node.connections.add(self)
+
 		conn._on('read', self.io_in)
 		conn._on('ready', self.ready)
 		conn._on('close', self.closed)
@@ -285,7 +284,7 @@ class RPCConnection(EventGen):
 			else:
 				p = self.call('%ping', 'ping')
 				p._except(ping_response)
-				pyevloop.later(5.0, self.keepalive)
+				self.node.eventloop.later(5.0, self.keepalive)
 
 	def closed(self, reason):
 		self.node._remove_connection(self)
@@ -386,7 +385,7 @@ class RPCConnection(EventGen):
 		if isinstance(obj, Referenced):
 			try:
 				obj.notify(method, *params)
-			except pyevloop.EVException as e:
+			except Exception as e:
 				logging.critical('Exception caused by connection {0}. Closing it.'.format(self.conn.addr))
 				self.close()
 		else:
