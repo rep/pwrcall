@@ -12,6 +12,7 @@ import traceback
 from . import util
 from . import pyevloop
 from . import serialize
+from . import info
 from .promise import Promise
 from .util import NodeException, expose, Referenced, EventGen
 
@@ -35,7 +36,7 @@ class nodeFunctions(object):
 		o = self.node.lookup(cap)
 		# cloning always includes the caller fingerprint
 		# this restricts revocation
-		options.update({'clonefp': conn.conn.peerfp})
+		options.update({'clonefp': conn.peerfp})
 		newcap = util.gen_forwarder(self.node.secret, o, self.node.nonce, options=options)
 		#self.node.register(o, cap=newcap)
 		return self.node.refurl(newcap)
@@ -47,22 +48,24 @@ class nodeFunctions(object):
 		cfp = opts.get('clonefp', None)
 		autofp = opts.get('fp', None)
 		if not cfp: raise NodeException('Not a cloned cap.')
-		if cfp != conn.conn.peerfp: raise NodeException('Denied.')
+		if cfp != conn.peerfp: raise NodeException('Denied.')
 		self.node.revoked.add(cap)
 		return True
 
 	@expose
 	def revoke_option(self, opt, conn):
-		self.node.revoked_opts[conn.conn.peerfp].add(opt)
+		self.node.revoked_opts[conn.peerfp].add(opt)
 		return True
 		
 class Node(EventGen):
 	def __init__(self, cert=None, eventloop=None):
 		EventGen.__init__(self)
-		self.eventloop = eventloop if eventloop != None else: pyevloop
+		self.eventloop = eventloop if eventloop != None else pyevloop
 		self.eventloop.shutdown_callback(self._shutdown_request)
 		self.cert = cert
-		self.x509, self.fp = util.load_cert(self.cert)
+		self.x509, self.fp = util.load_cert(self.cert) if cert else (None, 'none')
+		self.secret = util.filehash(self.cert)[:16] if cert else 'none'
+
 		logging.debug('Node fingerprint {0}'.format(self.fp))
 		print('Node fingerprint {0}'.format(self.fp))
 		self.verify_hook = None
@@ -77,7 +80,6 @@ class Node(EventGen):
 		self.revoked = set()
 		self.revoked_opts = collections.defaultdict(set)
 
-		self.secret = util.filehash(self.cert)[:16]
 		self.nonce = (util.rand32()<<32) | util.rand32()
 
 		self.register(nodeFunctions(self), cap='$node')
@@ -164,8 +166,8 @@ class Node(EventGen):
 	def _remove_connection(self, c):
 		if not self._closing:
 			self.connections.remove(c)
-		if c.conn.peerfp:
-			self.peers.pop(c.conn.peerfp, None)
+		if c.peerfp:
+			self.peers.pop(c.peerfp, None)
 		logging.info('Disconnect by {0}'.format(c.addr))
 
 	def connect(self, host, port):
@@ -198,10 +200,10 @@ class Node(EventGen):
 		logging.info('New connection from {0}'.format(addr))
 
 	def _connected(self, rc, peerpromise):
-		if rc.conn.peerfp in self.peers:
+		if rc.peerfp in self.peers:
 			rc.close()
 		else:
-			self.peers[rc.conn.peerfp] = rc
+			self.peers[rc.peerfp] = rc
 			peerpromise._resolve(rc)
 
 	def establish(self, url):
@@ -216,17 +218,17 @@ class Node(EventGen):
 		# look up fingerprint in connections
 		# TODO: keep hashmap to find connections more efficiently
 		for c in self.connections:
-			if c.conn.peerfp == fp:
+			if c.peerfp == fp:
 				logging.debug('Had a connection to that Node, reusing to get obj.')
 				p = Promise()
 				p._resolve( Referenced(c, cap) )
 				return p
 
 		def on_connected(conn, p, c, fp):
-			if conn.conn.peerfp == fp:
+			if conn.peerfp == fp:
 				p._resolve(Referenced(conn, c))
 			else:
-				p._smash(NodeException('Peer public key mismatch: {0}.'.format(conn.conn.peerfp)))
+				p._smash(NodeException('Peer public key mismatch: {0}.'.format(conn.peerfp)))
 
 		p1 = Promise()
 		p2 = Promise()
@@ -248,20 +250,23 @@ class RPCConnection(EventGen):
 		self.addr = addr
 		self.node = node
 
-		self.unpacker = serialize.PwrUnpacker(self)
-		self.packer = serialize.PwrPacker(self, self.gen_cap)
 		self.out_requests = {}
 		self.exports = {}
 		self.readypromise = Promise()
 		self.last_msgid = 0
 		self.livesign = time.time()
+		self.negotiated = False
+		self.remote_info = ''
+		self.peerfp = 'none'
 
+		self.unpacker = serialize.PwrUnpacker(self)
+		self.packer = serialize.PwrPacker(self, self.gen_cap)
 		self.node.connections.add(self)
 
 		conn._on('read', self.io_in)
-		conn._on('ready', self.ready)
 		conn._on('close', self.closed)
 		conn._on('verify', self.node.verify_peer)
+		conn.onready()._when(self.negotiate)
 
 	def onready(self):
 		return self.readypromise
@@ -269,9 +274,15 @@ class RPCConnection(EventGen):
 	def node(self):
 		return Referenced(self, '$node')
 
+	def negotiate(self, conn):
+		self.peerfp = self.conn.peerfp if hasattr(self.conn, 'peerfp') else 'plain'
+		self.conn.write(info.gen_banner())
+
 	def ready(self):
-		logging.info("Connected to remote {0}.".format(self.conn.peerfp))
-		self.readypromise._resolve( self )
+		self.negotiated = True
+		logging.info("Connected to remote {0} ({1}).".format(self.peerfp, self.remote_info))
+		self.readypromise._resolve(self)
+		self._event('ready')
 		self.keepalive()
 
 	def keepalive(self):
@@ -304,6 +315,17 @@ class RPCConnection(EventGen):
 		return
 
 	def io_in(self, data):
+		if not self.negotiated:
+			if '\n' in data:
+				info, data = data.split('\n', 1)
+				self.remote_info += info
+				self.ready()
+				if not data: return
+			else:
+				self.remote_info += data
+				if len(self.remote_info) > 100: self.logclose('Invalid info string received. Dropping connection.')
+				return
+		
 		self.unpacker.feed(data)
 		for item in self.unpacker:
 			if not type(item) in (list, tuple) or len(item) < 4:
@@ -323,7 +345,7 @@ class RPCConnection(EventGen):
 
 	def do_call(self, o, method, params):
 		fn = getattr(o, method, None)
-		if not fn:
+		if not fn or not hasattr(fn, 'exposed'):
 			raise NodeException('Object has no such method: {0}'.format(method))
 
 		argspec = inspect.getargspec(fn)
@@ -415,7 +437,7 @@ class RPCConnection(EventGen):
 		return p
 
 	def gen_cap(self, o, options={}):
-		options.update({'fp':self.conn.peerfp})
+		options.update({'fp':self.peerfp})
 		t = util.gen_forwarder(self.node.secret, o, self.node.nonce, options=options)
 		return t
 		

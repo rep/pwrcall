@@ -1,5 +1,7 @@
 import sys
 from pwrcall import loop, unloop, Node, expose
+import logging
+logging.basicConfig(level=logging.DEBUG)
 
 n = Node(cert='clientside.pem')
 math = n.establish(sys.argv[1])

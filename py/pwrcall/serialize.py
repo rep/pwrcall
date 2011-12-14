@@ -3,23 +3,71 @@ import logging
 import inspect
 import weakref
 
-from msgpack import Packer, Unpacker
-
 from .util import NodeException, Referenced
+from .info import addio, choose_ioproto
 
-def hook(o):
-	return o
+# import serializers
+import serialize_msgpack
 
-class PwrUnpacker(Unpacker):
+# json is python stdlib \o/
+import json
+addio('json')
+
+MAXLEN = 1024*1024
+
+class JsonPacker(json.JSONEncoder):
+	def __init__(self, defhook, *args, **kwargs):
+		json.JSONEncoder.__init__(self, *args, **kwargs)
+		self.defhook = defhook
+	
+	def default(self, o):
+		return self.defhook(o)
+
+	def pack(self, o):
+		return self.encode(o)
+
+class JsonUnpacker(object):
+	def __init__(self, arraycb):
+		self.arraycb = arraycb
+		self.jdec = json.JSONDecoder(object_hook=self.objcb)
+		self.buf = ''
+
+	def objcb(self, o):
+		if '_pwrobj' in o:
+			return self.arraycb(['_pwrobj',] + o['_pwrobj'])
+		return o
+
+	def feed(self, data):
+		self.buf += data
+	def unpack(self):
+		try: pyobj, index = self.jdec.raw_decode(self.buf)
+		except ValueError:
+			if len(self.buf) > MAXLEN: return self._close('buffer > MAXLEN.')
+			raise StopIteration('stop')
+
+		self.buf = self.buf[index:]
+		return pyobj
+
+class PwrUnpacker(object):
 	def __init__(self, conn):
-		def listhook(obj):
-			return self.array_cb(obj)
-		self.listhook = listhook
-
-		Unpacker.__init__(self, list_hook=self.listhook)
 		self.conn = conn
 		self.oseen = {}
 		self.cseen = {}
+		self._realunpacker = None
+
+	@property
+	def realunpacker(self):
+		if not self._realunpacker:
+			# depending on conn.remote_info, init serializer
+			ioproto = choose_ioproto(self.conn.remote_info)
+			if not ioproto: raise NodeException('no ioproto possible?')
+			if ioproto == 'msgpack':
+				self._realunpacker = serialize_msgpack.MsgUnpacker(self.array_cb)
+			elif ioproto == 'json':
+				self._realunpacker = JsonUnpacker(self.array_cb)
+			else:
+				raise NodeException('unknown ioproto chosen? not possible!')
+		return self._realunpacker
 
 	def array_cb(self, o):
 		if len(o) > 0 and o[0] == '_pwrobj':
@@ -47,18 +95,41 @@ class PwrUnpacker(Unpacker):
 
 		return o
 
+	def feed(self, data):
+		self.realunpacker.feed(data)
+
+	def __iter__(self):
+		return self
+
+	def next(self):
+		return self.unpack()
+
 	def unpack(self):
 		self.oseen = {}
 		self.cseen = {}
-		return Unpacker.unpack(self)
-
-class PwrPacker(Packer):
+		return self.realunpacker.unpack()
+	
+class PwrPacker(object):
 	def __init__(self, conn, capgen):
-		Packer.__init__(self, default=self.default)
 		self.conn = conn
 		self.capgen = capgen
 		self.cseen = set()
 		self.oseen = {}
+		self._realpacker = None
+	
+	@property
+	def realpacker(self):
+		if not self._realpacker:
+			# depending on conn.remote_info, init serializer
+			ioproto = choose_ioproto(self.conn.remote_info)
+			if not ioproto: raise NodeException('no ioproto possible?')
+			if ioproto == 'msgpack':
+				self._realpacker = serialize_msgpack.MsgPacker(self.default)
+			elif ioproto == 'json':
+				self._realpacker = JsonPacker(self.default)
+			else:
+				raise NodeException('unknown ioproto chosen? not possible!')
+		return self._realpacker
 
 	def default(self, o):
 		ref = self.oseen.get(o, None)
@@ -107,7 +178,7 @@ class PwrPacker(Packer):
 	def pack(self, o):
 		self.cseen = set()
 		self.oseen = {}
-		tmp = Packer.pack(self, o)
+		tmp = self.realpacker.pack(o)
 		for obj in self.oseen:
 			self.conn.node.exports[id(obj)] = weakref.ref(obj)
 			self.conn.exports[id(obj)] = obj
