@@ -1,0 +1,12 @@
+You need: 
+	python >= 2.6
+	gevent (python coroutine event loop)
+	bson (from pymongo mongodb driver)
+	nacl (pynacl)
+
+example server cmd:
+	python gevtest.py l --sock 6666 --state pwr.state2 --rpub 89ff96c52137d841270f3eb10818f8f235b62c3e2e396bddec9f6ace3e95f539
+
+example client cmd:
+	python gevtest.py c --sock 127.0.0.1:6666 --state pwr.state --rpub a94986965978a7cdacf276169612ab580f4199f011920607a39469a61e9aa502
+
