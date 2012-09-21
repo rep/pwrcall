@@ -57,12 +57,12 @@ def rand32():
 	return struct.unpack('I', os.urandom(4))[0]
 
 def gen_forwarder(secret, obj, nonce, options={}):
-	a = AES.new(secret, AES.MODE_CFB)
+	a = AES.new(secret, AES.MODE_CFB, IV=secret)
 	return a.encrypt( msgpack.packb((nonce, id(obj), options)) )
 
 # returns (fp, obj, nonce)
 def cap_from_forwarder(secret, fwd):
-	a = AES.new(secret, AES.MODE_CFB)
+	a = AES.new(secret, AES.MODE_CFB, IV=secret)
 	return msgpack.unpackb( a.decrypt(fwd) )
 
 def parse_url(url):
