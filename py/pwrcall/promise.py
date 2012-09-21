@@ -2,7 +2,7 @@
 import logging
 
 from .util import NodeException
-from .pyevloop import schedule
+from .evloop import schedule
 
 EVENTUAL = 1
 FULFILLED = 2
