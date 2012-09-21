@@ -75,7 +75,7 @@ class Node(EventGen):
 		self.listeners = set()
 		self._closing = False
 		self._shutdown = False
-		self.timeoutseconds
+		self.timeoutseconds = 7.0
 		self.exports = {}
 		self.directcaps = {}
 		self.revoked = set()
