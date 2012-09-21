@@ -75,6 +75,7 @@ class Node(EventGen):
 		self.listeners = set()
 		self._closing = False
 		self._shutdown = False
+		self.timeoutseconds
 		self.exports = {}
 		self.directcaps = {}
 		self.revoked = set()
@@ -286,7 +287,7 @@ class RPCConnection(EventGen):
 			self.livesign = time.time()
 
 		if not self.conn._closed:
-			if time.time() - self.livesign > 7.0:
+			if time.time() - self.livesign > self.node.timeoutseconds:
 				self.logclose('Connection timeout.')
 			else:
 				p = self.call('%ping', 'ping')
