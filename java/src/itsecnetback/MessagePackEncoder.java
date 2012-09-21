@@ -24,6 +24,10 @@ public class MessagePackEncoder extends OneToOneEncoder {
 	protected Object encode(ChannelHandlerContext ctx, Channel channel, Object msg) throws Exception {
 		if(msg instanceof ChannelBuffer)
 			return msg;
+		if(msg instanceof String) {
+			ChannelBuffer out = ChannelBuffers.copiedBuffer((String)msg, "UTF-8");
+			return out;
+		}
 
 		ChannelBufferOutputStream out = new ChannelBufferOutputStream(
 			ChannelBuffers.dynamicBuffer(

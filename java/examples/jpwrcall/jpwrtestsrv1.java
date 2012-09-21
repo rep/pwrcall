@@ -17,7 +17,7 @@ public class jpwrtestsrv1 {
 	}
 
 	public static void main(String[] args) {
-		Node n = new Node("cert_t1.jks");
+		Node n = new Node("server_keystore.jks");
 		jpwrtestsrv1.m = new Math();
 		String ref = n.register_object(m, "mathobj");
 		n.listen("0.0.0.0", 10003);

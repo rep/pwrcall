@@ -14,6 +14,7 @@ import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509TrustManager;
 
+import org.jboss.netty.buffer.ChannelBuffer;
 import org.jboss.netty.handler.ssl.SslHandler;
 import org.jboss.netty.channel.ChannelPipeline;
 import org.jboss.netty.channel.ChannelPipelineFactory;
@@ -113,19 +114,9 @@ public abstract class NetBack {
 
 		@Override
 		public void messageReceived(ChannelHandlerContext ctx, MessageEvent e) {
-			System.out.println("messageReveiced " + e.toString());
-			Object m = e.getMessage();
-			if(!(m instanceof MessagePackObject)) {
-				ctx.sendUpstream(e);
-				return;
-			}
-
-			MessagePackObject msg = (MessagePackObject)m;
-			System.out.println(" -> is MessagePackObject " + msg.toString());
-			if (handler == null)
-				e.getChannel().close();
-			else
-				handler.handle(msg);
+			ChannelBuffer m = (ChannelBuffer)e.getMessage();
+			if (handler == null) e.getChannel().close();
+			else handler.handle(m);
 		}
 
 		@Override
@@ -157,7 +148,7 @@ public abstract class NetBack {
 			configureEngine(engine);
 
 			pipeline.addLast("ssl", new SslHandler(engine));
-			pipeline.addLast("msgpack-decode-stream", new MessagePackStreamDecoder());
+			//pipeline.addLast("msgpack-decode-stream", new MessagePackStreamDecoder());
 			pipeline.addLast("msgpack-encode", new MessagePackEncoder());
 			pipeline.addLast("message", new NetBackHandler());
 			return pipeline;

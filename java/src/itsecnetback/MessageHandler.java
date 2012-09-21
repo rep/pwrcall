@@ -1,9 +1,9 @@
 package itsecnetback;
 
-import org.msgpack.MessagePackObject;
+import org.jboss.netty.buffer.ChannelBuffer;
 
 public interface MessageHandler {
-	void handle(MessagePackObject msg);
+	void handle(ChannelBuffer msg);
 	void closed(String cause);
 }
 

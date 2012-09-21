@@ -54,8 +54,8 @@ public class jpwrtestcli1 {
 	}
 
 	public static void main(String[] args) {
-		Node n = new Node("cert_t1.jks");
-		Promise p = n.connect("127.0.0.1", 10001);
+		Node n = new Node("client_keystore.jks");
+		Promise p = n.connect("127.0.0.1", 10003);
 		p.when(new OnConnected(args[0]));
 		p.except(new OnError());
 	}

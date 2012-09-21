@@ -7,17 +7,22 @@ import java.lang.reflect.Method;
 import java.util.HashMap;
 import java.util.AbstractMap;
 import java.lang.ref.WeakReference;
+import java.nio.ByteBuffer;
+import java.nio.charset.Charset;
 
 import java.io.IOException;
 import java.security.cert.Certificate;
+import org.jboss.netty.buffer.ChannelBuffer;
 import org.jboss.netty.channel.Channel;
 import org.jboss.netty.handler.ssl.SslHandler;
 import org.msgpack.MessagePackObject;
 import org.msgpack.MessagePackable;
 import org.msgpack.Packer;
+import org.msgpack.Unpacker;
 
 import itsecnetback.NetBack;
 import itsecnetback.MessageHandler;
+
 
 public class RPCConnection implements MessageHandler {
 	private final Channel chan;
@@ -26,7 +31,11 @@ public class RPCConnection implements MessageHandler {
 	private Node n;
 	private AbstractMap<Integer, Promise> out_requests = new HashMap<Integer, Promise>();
 	private int last_msgid = 0;
+	private boolean negotiated = false;
+	private String remote_info;
+	private Unpacker pac = new Unpacker();
 
+	public static Charset utf8charset = Charset.forName("UTF-8");
 	public static final int RPC_REQUEST = 0;
 	public static final int RPC_RESPONSE = 1;
 	public static final int RPC_NOTIFY = 2;
@@ -92,7 +101,7 @@ public class RPCConnection implements MessageHandler {
 		this.chan = chan;
 		this.n = n;
 		//System.out.println("sending msg");
-		//this.chan.write(new BootstrapMessage("foobarstr"));
+		this.chan.write("pwrcall java - caps: msgpack\n");
 
 		try {
 			this.cert = ((SslHandler)(chan.getPipeline().get("ssl"))).getEngine().getSession().getPeerCertificates()[0];
@@ -103,44 +112,57 @@ public class RPCConnection implements MessageHandler {
 		}
 	}
 
-	public void handle(MessagePackObject msg) {
-		if (!msg.isArrayType()) { logclose("message not array"); return; }
-		MessagePackObject[] array = msg.asArray();
-		if (array.length < 1 || !array[0].isIntegerType()) { logclose("message opcode not int"); return; }
+	public void handle(ChannelBuffer msg) {
+		if (!negotiated) {
+			remote_info = msg.toString(utf8charset);
+			System.out.println("remote banner: " + remote_info);
+			negotiated = true;
+			return;
+		}
 
-		int opcode = array[0].asInt();
-		System.out.println("handle called " + array.length + " opcode " + opcode);
+		ByteBuffer buffer = msg.toByteBuffer();
+		pac.feed(buffer);
 
-		switch (opcode) {
-			case RPC_REQUEST: {
-				int msgid = array[1].asInt();
-				String ref = array[2].asString();
-				String method = array[3].asString();
-				MessagePackObject[] params = array[4].asArray();
-				handle_request(msgid, ref, method, params);
-				break;
-			}
-			case RPC_RESPONSE: {
-				int msgid = array[1].asInt();
-				MessagePackObject error = array[2];
-				MessagePackObject result = array[3];
-				handle_response(msgid, error, result);
-				break;
-			}
-			case RPC_NOTIFY: {
-				String ref = array[1].asString();
-				String method = array[2].asString();
-				MessagePackObject[] params = array[3].asArray();
-				handle_notify(ref, method, params);
-				break;
-			}
-			case RPC_BOOTSTRAP: {
-				MessagePackObject obj = array[1];
-				handle_bootstrap(obj);
-				break;
-			}
-			default: {
-				logclose("unknown opcode: " + opcode);
+		for(MessagePackObject obj : pac) {
+			System.out.println("found msgpack object " + obj.toString());
+			if (!obj.isArrayType()) { logclose("message not array"); return; }
+			MessagePackObject[] array = obj.asArray();
+			if (array.length < 1 || !array[0].isIntegerType()) { logclose("message opcode not int"); return; }
+
+			int opcode = array[0].asInt();
+			System.out.println("handle called " + array.length + " opcode " + opcode);
+
+			switch (opcode) {
+				case RPC_REQUEST: {
+					int msgid = array[1].asInt();
+					String ref = array[2].asString();
+					String method = array[3].asString();
+					MessagePackObject[] params = array[4].asArray();
+					handle_request(msgid, ref, method, params);
+					break;
+				}
+				case RPC_RESPONSE: {
+					int msgid = array[1].asInt();
+					MessagePackObject error = array[2];
+					MessagePackObject result = array[3];
+					handle_response(msgid, error, result);
+					break;
+				}
+				case RPC_NOTIFY: {
+					String ref = array[1].asString();
+					String method = array[2].asString();
+					MessagePackObject[] params = array[3].asArray();
+					handle_notify(ref, method, params);
+					break;
+				}
+				case RPC_BOOTSTRAP: {
+					MessagePackObject obj2 = array[1];
+					handle_bootstrap(obj2);
+					break;
+				}
+				default: {
+					logclose("unknown opcode: " + opcode);
+				}
 			}
 		}
 	}
