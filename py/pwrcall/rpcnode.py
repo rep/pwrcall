@@ -10,7 +10,7 @@ import collections
 import traceback
 
 from . import util
-from . import pyevloop
+from . import evloop
 from . import serialize
 from . import info
 from .promise import Promise
@@ -60,11 +60,11 @@ class nodeFunctions(object):
 class Node(EventGen):
 	def __init__(self, cert=None, eventloop=None):
 		EventGen.__init__(self)
-		self.eventloop = eventloop if eventloop != None else pyevloop
+		self.eventloop = eventloop if eventloop != None else evloop
 		self.eventloop.shutdown_callback(self._shutdown_request)
 		self.cert = cert
 		self.x509, self.fp = util.load_cert(self.cert) if cert else (None, 'none')
-		self.secret = util.filehash(self.cert)[:16] if cert else 'none'
+		self.secret = util.filehash(self.cert)[:16] if cert else 'A' * 16
 
 		logging.debug('Node fingerprint {0}'.format(self.fp))
 		print('Node fingerprint {0}'.format(self.fp))
@@ -117,6 +117,8 @@ class Node(EventGen):
 		return False
 
 	def lookup(self, ref):
+		# if ref is unicode, encode latin1
+		if type(ref) == unicode: ref = ref.encode('latin1')
 		if ref in self.revoked: raise NodeException('Invalid object reference used.')
 		o = self.directcaps.get(ref, None)
 		if o: return o
@@ -326,7 +328,8 @@ class RPCConnection(EventGen):
 				if len(self.remote_info) > 100: self.logclose('Invalid info string received. Dropping connection.')
 				return
 		
-		self.unpacker.feed(data)
+		try: self.unpacker.feed(data)
+		except NodeException as e: return self.close(e)
 		for item in self.unpacker:
 			if not type(item) in (list, tuple) or len(item) < 4:
 				return self.logclose('Invalid data received. Dropping connection.')
@@ -421,11 +424,13 @@ class RPCConnection(EventGen):
 		self.conn.write(msg)
 
 	def send_request(self, msgid, ref, method, params):
-		msg = self.packer.pack([RPC_REQUEST, msgid, ref, method, params])
+		try: msg = self.packer.pack([RPC_REQUEST, msgid, ref, method, params])
+		except NodeException as e: return self.close(e)
 		self.conn.write(msg)
 
 	def send_notify(self, ref, method, params):
-		msg = self.packer.pack([RPC_NOTIFY, ref, method, params])
+		try: msg = self.packer.pack([RPC_NOTIFY, ref, method, params])
+		except NodeException as e: return self.close(e)
 		self.conn.write(msg)
 
 	def call(self, ref, method, *params):
