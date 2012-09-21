@@ -84,12 +84,6 @@ class Node(EventGen):
 
 		self.register(nodeFunctions(self), cap='$node')
 
-	def connstats(self):
-		print '---connstats---'
-		for i in self.connections:
-			print i, i.exports, i.out_requests, i.last_msgid, i.conn.buf.size, i.conn.readbytes, i.conn.writebytes
-		self.eventloop.later(5, self.connstats)
-
 	def verify_peer(self, ok, store, *args, **kwargs):
 		if self.verify_hook: return self.verify_hook(ok, store, *args, **kwargs)
 		return True
