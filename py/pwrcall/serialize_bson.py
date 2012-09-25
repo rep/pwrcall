@@ -25,7 +25,7 @@ else:
 
 			if len(self.buf) < framelen: raise StopIteration('stop')
 
-			rest, self.buf = self.buf[4:framelen], self.buf[framelen:]
+			rest, self.buf = self.buf[:framelen], self.buf[framelen:]
 			if not bson.is_valid(rest):
 				logging.critical('Invalid BSON in frame from remote! content: {0}'.format(repr(rest)))
 				return self.unpack()
@@ -35,6 +35,5 @@ else:
 
 	class BsonPacker(object):
 		def pack(self, o):
-			packed = bson.BSON.encode({'data': o})
-			return struct.pack('!I', len(packed)+4) + packed
+			return bson.BSON.encode({'data': o})
 
