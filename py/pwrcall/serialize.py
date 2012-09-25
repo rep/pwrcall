@@ -8,6 +8,7 @@ from .info import addio, choose_ioproto
 
 # import serializers
 import serialize_msgpack
+import serialize_bson
 
 # json is python stdlib \o/
 import json
@@ -63,6 +64,8 @@ class PwrUnpacker(object):
 			if not ioproto: raise NodeException('no ioproto possible?')
 			if ioproto == 'msgpack':
 				self._realunpacker = serialize_msgpack.MsgUnpacker(self.array_cb)
+			elif ioproto == 'bson':
+				self._realunpacker = serialize_bson.BsonUnpacker()
 			elif ioproto == 'json':
 				self._realunpacker = JsonUnpacker(self.array_cb)
 			else:
@@ -125,6 +128,8 @@ class PwrPacker(object):
 			if not ioproto: raise NodeException('no ioproto possible?')
 			if ioproto == 'msgpack':
 				self._realpacker = serialize_msgpack.MsgPacker(self.default)
+			elif ioproto == 'bson':
+				self._realpacker = serialize_bson.BsonPacker()
 			elif ioproto == 'json':
 				self._realpacker = JsonPacker(self.default)
 			else:
