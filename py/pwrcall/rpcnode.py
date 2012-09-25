@@ -292,7 +292,7 @@ class RPCConnection(EventGen):
 			else:
 				p = self.call('%ping', 'ping')
 				p._except(ping_response)
-				self.node.eventloop.later(5.0, self.keepalive)
+				self.node.eventloop.later(self.node.timeoutseconds-2, self.keepalive)
 
 	def closed(self, reason):
 		self.node._remove_connection(self)
