@@ -271,7 +271,7 @@ class RPCConnection(EventGen):
 	def node(self):
 		return Referenced(self, '$node')
 
-	def negotiate(self, conn):
+	def negotiate(self, conn=None):
 		self.peerfp = self.conn.peerfp if hasattr(self.conn, 'peerfp') else 'plain'
 		self.conn.write(info.gen_banner())
 
