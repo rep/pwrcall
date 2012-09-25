@@ -7,8 +7,8 @@ from .util import NodeException, Referenced
 from .info import addio, choose_ioproto
 
 # import serializers
-import serialize_msgpack
 import serialize_bson
+import serialize_msgpack
 
 # json is python stdlib \o/
 import json

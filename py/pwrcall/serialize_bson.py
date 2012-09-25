@@ -21,7 +21,7 @@ else:
 
 		def unpack(self):
 			if len(self.buf) < 4: raise StopIteration('stop')
-			framelen = struct.unpack('!I', self.buf[:4])[0]
+			framelen = struct.unpack('<i', self.buf[:4])[0]
 
 			if len(self.buf) < framelen: raise StopIteration('stop')
 
