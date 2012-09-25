@@ -13,6 +13,9 @@ import msgpack
 class NodeException(Exception):
 	"""Base for Node Exceptions"""
 
+class CallException(Exception):
+	"""Call Exception"""
+
 
 class EventGen(object):
 	def __init__(self):
