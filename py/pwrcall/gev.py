@@ -46,11 +46,15 @@ class SockWrap(EventGen):
 	def read(self):
 		try:
 			return self.sock.recv(BUFSIZE)
+		except pwrtls.pwrtls_closed:
+			return ''
 		except socket.error:
 			self.close()
 			return ''
 	def write(self, data):
 		try: return self.sock.send(data)
+		except pwrtls.pwrtls_closed:
+			return ''
 		except socket.error:
 			self.close()
 			return 0
@@ -59,7 +63,7 @@ class SockWrap(EventGen):
 		self._closed = True
 		self._event('close', e)
 	def close(self):
-		self._close(EVException('Connection closed.'))
+		if not self._closed: self._close(EVException('Connection closed.'))
 
 
 class Node(rpcnode.Node):
@@ -77,20 +81,17 @@ class Node(rpcnode.Node):
 
 		c = gevent.socket.create_connection((host, port))
 
-		rc = RPCConnection(c, (host, port), self)
-		self._event('connection', rc, (host, port))
-		return rc
+		return self._new_conn(c, (host, port))
 
-	def connectPTLS(self, host, port):
+	def connectPTLS(self, host, port, statepath=None):
 		logging.info('Connecting to, {0}:{1}'.format(host, port))
+		if not statepath: raise NodeException('PTLS needs statepath!')
 
 		c = gevent.socket.create_connection((host, port))
-		c = pwrtls.wrap_socket(c, **state)
+		c = pwrtls.wrap_socket(c, **pwrtls.state_file(statepath))
 		c.do_handshake()
 
-		rc = RPCConnection(c, (host, port), self)
-		self._event('connection', rc, (host, port))
-		return rc		
+		return self._new_conn(c, (host, port))
 
 	def listen(self, host='', port=0, backlog_limit=5):
 		def handle(sock, addr):
@@ -114,7 +115,8 @@ class Node(rpcnode.Node):
 	def _new_conn(self, c, addr):
 		rc = RPCConnection(c, addr, self)
 		self._event('connection', rc, addr)
-		logging.info('New connection from {0}'.format(addr))
+		logging.info('New connection: {0}'.format(addr))
+		return rc
 
 	def establish(self, url):
 		try:
@@ -171,23 +173,29 @@ class RPCConnection(rpcnode.RPCConnection):
 		self.negotiated = True
 		logging.info("Connected to remote {0} ({1}).".format(self.peerfp, self.remote_info))
 		self._event('ready')
-		gevent.spawn(self.keepalive)
+		self.alivegreenlet = gevent.spawn(self.keepalive)
 		self.handlegreenlet = gevent.spawn(self.handle)
 
 	def keepalive(self):
 		while True:
 			with gevent.Timeout(self.node.timeoutseconds, ConnTimeout) as timeout:
-				try: r = self.call('%ping', 'ping')
+				try:
+					r = self.call('%ping', 'ping')
+					gevent.sleep(self.node.timeoutseconds-2)
 				except ConnTimeout:
 					return self.logclose('Connection timeout.')
 				except CallException:
 					# this is normal, as ping does not exist
 					pass
+				except NodeException as e:
+					# maybe connection was already closed
+					logging.info('Keepalive: {0}'.format(e))
+					break
 				except Exception as e:
 					logging.debug('Exception in keepalive: {0}'.format(e))
 					traceback.print_exc()
 					break
-			gevent.sleep(self.node.timeoutseconds-2)
+			if self.conn._closed: break
 
 	def call(self, ref, method, *params):
 		self.last_msgid += 1
@@ -231,6 +239,7 @@ class RPCConnection(rpcnode.RPCConnection):
 					return self.logclose('Invalid opcode. Dropping connection.')
 
 			data = self.conn.read()
+		return self.logclose('handle finished.')
 
 	def handler_exception(self, *args, **kwargs):
 		print 'handler exception:', args, kwargs
@@ -279,7 +288,9 @@ class RPCConnection(rpcnode.RPCConnection):
 	def closed(self, reason):
 		self.node._remove_connection(self)
 		logging.info('Connection closed, {0}'.format(reason))
+		ne = NodeException('Connection closed, {0}'.format(reason))
 		for ar in self.out_requests.values():
-			ar.set_exception(NodeException('Connection closed, {0}'.format(reason)))
+			ar.set_exception(ne)
+		#gevent.kill(self.alivegreenlet, exception=ne)
 		self._event('close', reason)
 

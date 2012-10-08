@@ -162,7 +162,8 @@ class Node(EventGen):
 
 	def _remove_connection(self, c):
 		if not self._closing:
-			self.connections.remove(c)
+			if c in self.connections: self.connections.remove(c)
+			else: logging.critical('connection to be removed not in self.connections!')
 		if c.peerfp:
 			self.peers.pop(c.peerfp, None)
 		logging.info('Disconnect by {0}'.format(c.addr))
