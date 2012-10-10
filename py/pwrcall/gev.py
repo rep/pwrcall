@@ -181,7 +181,6 @@ class RPCConnection(rpcnode.RPCConnection):
 			with gevent.Timeout(self.node.timeoutseconds, ConnTimeout) as timeout:
 				try:
 					r = self.call('%ping', 'ping')
-					gevent.sleep(self.node.timeoutseconds-2)
 				except ConnTimeout:
 					return self.logclose('Connection timeout.')
 				except CallException:
@@ -195,6 +194,8 @@ class RPCConnection(rpcnode.RPCConnection):
 					logging.debug('Exception in keepalive: {0}'.format(e))
 					traceback.print_exc()
 					break
+				finally:
+					gevent.sleep(self.node.timeoutseconds-2)
 			if self.conn._closed: break
 
 	def call(self, ref, method, *params):
