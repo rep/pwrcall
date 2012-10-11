@@ -15,7 +15,8 @@ from . import serialize
 from .util import NodeException, CallException, EventGen, Referenced
 from .rpcnode import RPC_REQUEST, RPC_RESPONSE, RPC_NOTIFY
 
-import pwrtls
+try: import pwrtls
+except: pwrtls = None
 
 BUFSIZE = 16*1024
 
