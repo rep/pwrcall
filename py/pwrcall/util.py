@@ -6,9 +6,9 @@ import weakref
 import urlparse
 import hashlib
 
-from Crypto.Cipher import AES
-from OpenSSL import crypto
-import msgpack
+import info
+import crypto
+
 
 class NodeException(Exception):
 	"""Base for Node Exceptions"""
@@ -60,13 +60,11 @@ def rand32():
 	return struct.unpack('I', os.urandom(4))[0]
 
 def gen_forwarder(secret, obj, nonce, options={}):
-	a = AES.new(secret, AES.MODE_CFB, IV=secret)
-	return a.encrypt( msgpack.packb((nonce, id(obj), options)) )
+	return crypto.encrypt( msgpack.packb((nonce, id(obj), options)), secret )
 
 # returns (fp, obj, nonce)
 def cap_from_forwarder(secret, fwd):
-	a = AES.new(secret, AES.MODE_CFB, IV=secret)
-	return msgpack.unpackb( a.decrypt(fwd) )
+	return msgpack.unpackb( crypto.decrypt(fwd, secret) )
 
 def parse_url(url):
 	up = urlparse.urlparse(url)
@@ -80,7 +78,7 @@ def load_cert(cert):
 	if not cert:
 		return None,''
 	if os.path.exists(cert):
-		x509 = crypto.load_certificate(crypto.FILETYPE_PEM, open(cert, 'r').read())
+		x509 = crypto.OpenSSL.crypto.load_certificate(crypto.OpenSSL.crypto.FILETYPE_PEM, open(cert, 'r').read())
 		fp = x509.digest('sha1').replace(':','').lower()
 		return x509, fp
 	return None, ''
@@ -116,26 +114,26 @@ def WeakMethod(f):
 
 
 def gen_selfsigned_cert(c='DE', st='NRW', l='Aachen', o='ITsec', ou='pwrcall', cn=os.urandom(10).encode('hex')):
-	k = crypto.PKey()
-	k.generate_key(crypto.TYPE_RSA, 1024)
+	k = crypto.OpenSSL.crypto.PKey()
+	k.generate_key(crypto.OpenSSL.crypto.TYPE_RSA, 1024)
 
-        # create a self-signed cert
-        cert = crypto.X509()
-        cert.get_subject().C = c
-        cert.get_subject().ST = st
-        cert.get_subject().L = l
-        cert.get_subject().O = o
-        cert.get_subject().OU = ou
-        cert.get_subject().CN = cn
-        cert.set_serial_number(1000)
-        cert.gmtime_adj_notBefore(0)
-        cert.gmtime_adj_notAfter(10*365*24*60*60)
-        cert.set_issuer(cert.get_subject())
-        cert.set_pubkey(k)
-        cert.sign(k, 'sha1')
+	# create a self-signed cert
+	cert = crypto.OpenSSL.crypto.X509()
+	cert.get_subject().C = c
+	cert.get_subject().ST = st
+	cert.get_subject().L = l
+	cert.get_subject().O = o
+	cert.get_subject().OU = ou
+	cert.get_subject().CN = cn
+	cert.set_serial_number(1000)
+	cert.gmtime_adj_notBefore(0)
+	cert.gmtime_adj_notAfter(10*365*24*60*60)
+	cert.set_issuer(cert.get_subject())
+	cert.set_pubkey(k)
+	cert.sign(k, 'sha1')
 
-	crtpem = crypto.dump_certificate(crypto.FILETYPE_PEM, cert)
-	keypem = crypto.dump_privatekey(crypto.FILETYPE_PEM, k)
+	crtpem = crypto.OpenSSL.crypto.dump_certificate(crypto.FILETYPE_PEM, cert)
+	keypem = crypto.OpenSSL.crypto.dump_privatekey(crypto.FILETYPE_PEM, k)
 
 	return '\n'.join([keypem, crtpem])
 

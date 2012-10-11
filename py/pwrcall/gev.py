@@ -46,24 +46,21 @@ class SockWrap(EventGen):
 	def read(self):
 		try:
 			return self.sock.recv(BUFSIZE)
-		except pwrtls.pwrtls_closed:
-			return ''
-		except socket.error:
-			self.close()
+		except Exception as e:
+			self._close('recv exception: {0}'.format(e))
 			return ''
 	def write(self, data):
 		try: return self.sock.send(data)
-		except pwrtls.pwrtls_closed:
+		except Exception as e:
+			self._close('send exception: {0}'.format(e))
 			return ''
-		except socket.error:
-			self.close()
-			return 0
 	def _close(self, e):
-		if self.sock: self.sock.close()
-		self._closed = True
-		self._event('close', e)
+		if not self._closed:
+			if self.sock: self.sock.close()
+			self._closed = True
+			self._event('close', e)
 	def close(self):
-		if not self._closed: self._close(EVException('Connection closed.'))
+		self._close(EVException('Connection closed.'))
 
 
 class Node(rpcnode.Node):
@@ -105,8 +102,9 @@ class Node(rpcnode.Node):
 		if not statepath: raise NodeException('listenPTLS needs statepath!')
 		def handle(socket, addr):
 			socket = pwrtls.wrap_socket(socket, server_side=True, **pwrtls.state_file(statepath))
-			socket.do_handshake()
-			self._new_conn(socket, addr)
+			try: socket.do_handshake()
+			except Exception as e: logging.warn('PTLS Client handshake failure. Closing')
+			else: self._new_conn(socket, addr)
 
 		l = StreamServer((host, port), handle)
 		self.listeners.add(l)
@@ -211,7 +209,9 @@ class RPCConnection(rpcnode.RPCConnection):
 		tmp = ''
 		while not '\n' in tmp:
 			if len(tmp) > 100: return self.logclose('Invalid info string received. Dropping connection.')
-			tmp += self.conn.read()
+			tmp2 = self.conn.read()
+			if not tmp2: return self.logclose('Closed before banner.')
+			tmp += tmp2
 
 		self.remote_info, tmp = tmp.split('\n', 1)
 		self.ready()
