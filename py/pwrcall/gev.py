@@ -38,6 +38,10 @@ class geventLoopAdapter:
 	def later(seconds, cb, *args, **kwargs):
 		gevent.core.timer(seconds, cb, *args, **kwargs)
 
+	@classmethod
+	def shutdown_callback(*args, **kwargs):
+		logging.warn('shutdown callback not implemented for gevent, yet.')
+
 
 class SockWrap(EventGen):
 	def __init__(self, sock):
