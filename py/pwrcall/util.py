@@ -9,6 +9,8 @@ import hashlib
 import info
 import crypto
 
+try: import msgpack
+except: pass
 
 class NodeException(Exception):
 	"""Base for Node Exceptions"""
