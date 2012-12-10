@@ -72,8 +72,7 @@ class Node(rpcnode.Node):
 	local = gevent.local.local()
 
 	def __init__(self, *args, **kwargs):
-		rpcnode.Node.__init__(self, *args, **kwargs)
-		self.eventloop = geventLoopAdapter
+		rpcnode.Node.__init__(self, *args, eventloop=geventLoopAdapter, **kwargs)
 
 	def refurl(self, ref):
 		return 'pwrcall://{0}@{1}/{2}'.format(self.fp, '', ref.encode('base64').strip())
