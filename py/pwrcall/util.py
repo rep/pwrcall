@@ -134,8 +134,8 @@ def gen_selfsigned_cert(c='DE', st='NRW', l='Aachen', o='ITsec', ou='pwrcall', c
 	cert.set_pubkey(k)
 	cert.sign(k, 'sha1')
 
-	crtpem = crypto.OpenSSL.crypto.dump_certificate(crypto.FILETYPE_PEM, cert)
-	keypem = crypto.OpenSSL.crypto.dump_privatekey(crypto.FILETYPE_PEM, k)
+	crtpem = crypto.OpenSSL.crypto.dump_certificate(crypto.OpenSSL.crypto.FILETYPE_PEM, cert)
+	keypem = crypto.OpenSSL.crypto.dump_privatekey(crypto.OpenSSL.crypto.FILETYPE_PEM, k)
 
 	return '\n'.join([keypem, crtpem])
 
